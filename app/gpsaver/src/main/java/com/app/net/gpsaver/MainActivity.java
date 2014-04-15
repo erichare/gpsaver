@@ -1,21 +1,20 @@
 package com.app.net.gpsaver;
 
-import android.app.Activity;
-;
 import android.app.ActionBar;
+import android.app.Activity;
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.content.Context;
-import android.os.Build;
+import android.content.IntentFilter;
+import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Bundle;
-import android.view.Gravity;
+import android.support.v4.widget.DrawerLayout;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.support.v4.widget.DrawerLayout;
-import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
 public class MainActivity extends Activity
@@ -30,6 +29,10 @@ public class MainActivity extends Activity
      * Used to store the last screen title. For use in {@link #restoreActionBar()}.
      */
     private CharSequence mTitle;
+    private final IntentFilter intentFilter = new IntentFilter();
+    WifiP2pManager mManager;
+    WifiP2pManager.Channel mChannel;
+    WiFiDirectBroadcastReceiver mReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +47,53 @@ public class MainActivity extends Activity
         mNavigationDrawerFragment.setUp(
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
+
+        //  Indicates a change in the Wi-Fi P2P status.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
+
+        // Indicates a change in the list of available peers.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
+
+        // Indicates the state of Wi-Fi P2P connectivity has changed.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+
+        // Indicates this device's details have changed.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
+
+        mManager = (WifiP2pManager) getSystemService(Context.WIFI_P2P_SERVICE);
+        mChannel = mManager.initialize(this, getMainLooper(), null);
+        Log.d("p2p", "disc");
+        mManager.discoverPeers(mChannel, new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                // Code for when the discovery initiation is successful goes here.
+                // No services have actually been discovered yet, so this method
+                // can often be left blank.  Code for peer discovery goes in the
+                // onReceive method, detailed below.
+                Log.d("p2p", "mainsuccess");
+            }
+
+            @Override
+            public void onFailure(int reasonCode) {
+                // Code for when the discovery initiation fails goes here.
+                // Alert the user that something went wrong.
+                Log.d("p2p", "mainfailure " + reasonCode);
+            }
+        });
+    }
+
+    /** register the BroadcastReceiver with the intent values to be matched */
+    @Override
+    public void onResume() {
+        super.onResume();
+        mReceiver = new WiFiDirectBroadcastReceiver(mManager, mChannel, this);
+        registerReceiver(mReceiver, intentFilter);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        unregisterReceiver(mReceiver);
     }
 
     @Override
