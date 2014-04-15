@@ -6,6 +6,10 @@ import android.app.IntentService;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.os.Bundle;
 import android.util.Log;
 
 import java.io.ByteArrayInputStream;
@@ -26,6 +30,9 @@ public class FileTransferService extends IntentService {
     public static final String EXTRAS_FILE_PATH = "file_url";
     public static final String EXTRAS_GROUP_OWNER_ADDRESS = "go_host";
     public static final String EXTRAS_GROUP_OWNER_PORT = "go_port";
+
+    private static double longitude;
+    private static double latitude;
 
     public FileTransferService(String name) {
         super(name);
@@ -57,7 +64,29 @@ public class FileTransferService extends IntentService {
                 Log.d(WiFiDirectActivity.TAG, "Client socket - " + socket.isConnected());
                 OutputStream stream = socket.getOutputStream();
                 ContentResolver cr = context.getContentResolver();
-                InputStream is = new ByteArrayInputStream(fileUri.getBytes("UTF-8"));
+
+                LocationManager lm = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
+                Location location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+
+                LocationListener locationListener = new LocationListener() {
+                    public void onLocationChanged(Location location) {
+                        longitude = location.getLongitude();
+                        latitude = location.getLatitude();
+                    }
+
+                    public void onStatusChanged(String provider, int status, Bundle extras) {}
+
+                    public void onProviderEnabled(String provider) {}
+
+                    public void onProviderDisabled(String provider) {}
+                };
+
+                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 10, locationListener);
+
+                location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+
+                InputStream is = new ByteArrayInputStream((location.getLatitude() + "," + location.getLongitude()).getBytes("UTF-8"));
+                Log.d("Test", (location.getLatitude() + "," + location.getLongitude()));
                 DeviceDetailFragment.copyFile(is, stream);
                 Log.d(WiFiDirectActivity.TAG, "Client: Data written");
             } catch (IOException e) {

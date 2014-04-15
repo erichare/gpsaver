@@ -32,7 +32,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.example.android.wifidirect.DeviceListFragment.DeviceActionListener;
 
@@ -55,6 +54,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
     private WifiP2pDevice device;
     private WifiP2pInfo info;
     ProgressDialog progressDialog = null;
+    private static String curloc = "No Location Yet...";
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
@@ -104,17 +104,8 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
 
                     @Override
                     public void onClick(View v) {
-                        // Allow user to pick an image from Gallery or other
-                        // registered apps
-                        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                        intent.setType("image/*");
-
-                        TextView statusText = (TextView) mContentView.findViewById(R.id.status_text);
-                        statusText.setText("Sending: " + "LOL");
-                        Log.d(WiFiDirectActivity.TAG, "Intent----------- " + "LOL");
                         Intent serviceIntent = new Intent(getActivity(), FileTransferService.class);
                         serviceIntent.setAction(FileTransferService.ACTION_SEND_FILE);
-                        serviceIntent.putExtra(FileTransferService.EXTRAS_FILE_PATH, "LOL".toString());
                         serviceIntent.putExtra(FileTransferService.EXTRAS_GROUP_OWNER_ADDRESS,
                                 info.groupOwnerAddress.getHostAddress());
                         serviceIntent.putExtra(FileTransferService.EXTRAS_GROUP_OWNER_PORT, 8988);
@@ -140,6 +131,8 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
                         : getResources().getString(R.string.no)));
 
         // InetAddress from WifiP2pInfo struct.
+        view = (TextView) mContentView.findViewById(R.id.current_location);
+        view.setText(curloc);
         view = (TextView) mContentView.findViewById(R.id.device_info);
         view.setText("Group Owner IP - " + info.groupOwnerAddress.getHostAddress());
 
@@ -147,7 +140,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
         // server. The file server is single threaded, single connection server
         // socket.
         if (info.groupFormed && info.isGroupOwner) {
-            new FileServerAsyncTask(getActivity(), mContentView.findViewById(R.id.status_text))
+            new FileServerAsyncTask(getActivity(), mContentView.findViewById(R.id.status_text), mContentView.findViewById(R.id.device_info))
                     .execute();
         } else if (info.groupFormed) {
             // The other device acts as the client. In this case, we enable the
@@ -171,9 +164,10 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
         this.getView().setVisibility(View.VISIBLE);
         TextView view = (TextView) mContentView.findViewById(R.id.device_address);
         view.setText(device.deviceAddress);
+        view = (TextView) mContentView.findViewById(R.id.current_location);
+        view.setText(curloc);
         view = (TextView) mContentView.findViewById(R.id.device_info);
-        view.setText(device.toString());
-
+        view.setText(device.deviceName);
     }
 
     /**
@@ -183,6 +177,8 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
         mContentView.findViewById(R.id.btn_connect).setVisibility(View.VISIBLE);
         TextView view = (TextView) mContentView.findViewById(R.id.device_address);
         view.setText(R.string.empty);
+        view = (TextView) mContentView.findViewById(R.id.current_location);
+        view.setText(curloc);
         view = (TextView) mContentView.findViewById(R.id.device_info);
         view.setText(R.string.empty);
         view = (TextView) mContentView.findViewById(R.id.group_owner);
@@ -201,35 +197,16 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
 
         private Context context;
         private TextView statusText;
+        private TextView LocText;
 
         /**
          * @param context
          * @param statusText
          */
-        public FileServerAsyncTask(Context context, View statusText) {
+        public FileServerAsyncTask(Context context, View statusText, View LocText) {
             this.context = context;
             this.statusText = (TextView) statusText;
-        }
-
-        private String convertStreamToString(InputStream is) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-            StringBuilder sb = new StringBuilder();
-
-            String line = null;
-            try {
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line + "\n");
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            return sb.toString();
+            this.LocText = (TextView) LocText;
         }
 
         @Override
@@ -240,6 +217,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
                 Socket client = serverSocket.accept();
                 Log.d(WiFiDirectActivity.TAG, "Server: connection done");
                 InputStream inputstream = client.getInputStream();
+                serverSocket.close();
                 return convertStreamToString(inputstream);
             } catch (IOException e) {
                 Log.e(WiFiDirectActivity.TAG, e.getMessage());
@@ -255,7 +233,9 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
         protected void onPostExecute(String result) {
             if (result != null) {
                 statusText.setText("File copied - " + result);
-                Toast.makeText(context, result, Toast.LENGTH_SHORT).show();
+                curloc = result;
+                Intent intent = new Intent(context, NextActivity.class);
+                context.startActivity(intent);
             }
 
         }
@@ -269,6 +249,27 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
             statusText.setText("Opening a server socket");
         }
 
+    }
+
+    private static String convertStreamToString(InputStream is) {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        StringBuilder sb = new StringBuilder();
+
+        String line = null;
+        try {
+            while ((line = reader.readLine()) != null) {
+                sb.append(line + "\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                is.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return sb.toString();
     }
 
     public static boolean copyFile(InputStream inputStream, OutputStream out) {
